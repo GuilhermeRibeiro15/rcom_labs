@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
+#include <signal.h>
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
@@ -25,14 +26,6 @@
 #define TRUE 1
 
 #define BUF_SIZE 5
-
-void alarmHandler(int signal)
-{
-    alarmEnabled = FALSE;
-    alarmCount++;
-
-    printf("Alarm #%d\n", alarmCount);
-}
 
 volatile int STOP = FALSE;
 

@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
+#include <signal.h>
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
@@ -44,7 +45,7 @@ void alarmHandler(int signal)
     printf("Alarm #%d\n", alarmCount);
 }
 
-void sendFrame(unsigned char* buf, int n){
+int sendFrame(unsigned char* buf, int n, int fd){
 
     int bytes = write(fd, buf, n);
     if(bytes != n) printf("write diff\n");
@@ -73,10 +74,7 @@ void sendFrame(unsigned char* buf, int n){
             return 1;
         } 
         printf("buf = 0x%02X\n", (unsigned int)(buf1[i] & 0xFF));
-        
-        
-        
-        		    
+        	    
     }
    
     return 0;
@@ -100,6 +98,7 @@ int main(int argc, char *argv[])
 
     // Open serial port device for reading and writing, and not as controlling tty
     // because we don't want to get killed if linenoise sends CTRL-C.
+
     int fd = open(serialPortName, O_RDWR | O_NOCTTY);
 
     if (fd < 0)
@@ -107,6 +106,7 @@ int main(int argc, char *argv[])
         perror(serialPortName);
         exit(-1);
     }
+
 
     struct termios oldtio;
     struct termios newtio;
@@ -155,11 +155,13 @@ int main(int argc, char *argv[])
     (void)signal(SIGALRM, alarmHandler);  
     
     while(alarmCount < 4){
-        if(sendFrame(*buf, BUF_SIZE) != 0){
+        if(sendFrame(buf, BUF_SIZE, fd) != 0){
             alarmCount++;
         }
         else break;
     }    
+
+    printf("Written");
     	
     //if(buf[i] == FLAG && i != 0) STOP = TRUE;
 	
