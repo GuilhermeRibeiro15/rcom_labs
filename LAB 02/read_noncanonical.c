@@ -1,4 +1,4 @@
-// Read from serial port in non-canonical mode
+// Read from serial port in non-canonical mode 
 //
 // Modified by: Eduardo Nuno Almeida [enalmeida@fe.up.pt]
 
@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
         
         //buf[bytes] = '\0'; // Set end of string to '\0', so we can printf
 
-        printf("buf = 0x%02X\n", (unsigned int)(buf[i] & 0xFF));		
+        printf("buf = 0x%02X\n", (unsigned int)(buf[i] & 0xFF));
         if (buf[i] == FLAG & i != 0)
             break;
             
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
     }
     
     unsigned char buf1[BUF_SIZE] = {FLAG, A, C, BCC, FLAG};
-    	
+    
     int bytes1 = write(fd, buf1, BUF_SIZE);
     
     printf("%d bytes written\n", bytes1);

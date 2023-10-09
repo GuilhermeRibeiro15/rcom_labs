@@ -1,4 +1,4 @@
-// Write to serial port in non-canonical mode
+// Write to serial port in non-canonical mode 
 //
 // Modified by: Eduardo Nuno Almeida [enalmeida@fe.up.pt]
 
@@ -46,39 +46,38 @@ void alarmHandler(int signal)
 }
 
 int sendFrame(unsigned char* buf, int n, int fd){
-
+    
     int bytes = write(fd, buf, n);
     if(bytes != n) printf("write diff\n");
-    
+
     printf("%d bytes written\n", bytes);
-    
-    alarm(3);
-    
-    if(alarmEnabled == FALSE){
-        alarmEnabled = TRUE;
-    }
-    
+
+    alarm(3);    
+    alarmEnabled = TRUE;
+
+   
     unsigned char buf1[BUF_SIZE] = {0};
+    printf("Before read \n");
     int bytes1 = read(fd, buf1, BUF_SIZE);
-    
+
+    printf("bytes1=%d \n", bytes1);
+
+    alarm(0);   
     if(bytes1 == 0) return 1;
-    alarm(0);
+
 
     unsigned char buf_UA[BUF_SIZE] = {FLAG_UA, A_UA, C_UA, BCC_UA, FLAG_UA};
 
     for(int i = 0; i < bytes1; i++){
-        
-        
         if(buf_UA[i] != buf1[i]){
             printf("Received diff UA \n");
             return 1;
-        } 
-        printf("buf = 0x%02X\n", (unsigned int)(buf1[i] & 0xFF));
-        	    
+        }
+        printf("buf = 0x%02X\n", (unsigned int)(buf1[i] & 0xFF));  
     }
-   
-    return 0;
     
+    return 0;
+   
 }
 
 int main(int argc, char *argv[])
@@ -127,8 +126,8 @@ int main(int argc, char *argv[])
 
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 5;  // Blocking read until 5 chars received
+    newtio.c_cc[VTIME] = 30; // Inter-character timer unused
+    newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -151,20 +150,22 @@ int main(int argc, char *argv[])
 
     // Create string to send
     unsigned char buf[BUF_SIZE] = {FLAG, A, C, BCC, FLAG};
-    
+   
     (void)signal(SIGALRM, alarmHandler);  
-    
+   
+
+   
     while(alarmCount < 4){
         if(sendFrame(buf, BUF_SIZE, fd) != 0){
-            alarmCount++;
+            // printf("Nice Alarm %d \n", alarmCount);
         }
         else break;
     }    
 
-    printf("Written");
-    	
+    printf("Written \n");
+
     //if(buf[i] == FLAG && i != 0) STOP = TRUE;
-	
+
     // In non-canonical mode, '\n' does not end the writing.
     // Test this condition by placing a '\n' in the middle of the buffer.
     // The whole buffer must be sent even with the '\n'.
