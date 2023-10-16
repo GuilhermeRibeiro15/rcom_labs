@@ -57,10 +57,7 @@ int sendFrame(unsigned char* buf, int n, int fd){
 
    
     unsigned char buf1[BUF_SIZE] = {0};
-    printf("Before read \n");
     int bytes1 = read(fd, buf1, BUF_SIZE);
-
-    printf("bytes1=%d \n", bytes1);
 
     alarm(0);   
     if(bytes1 == 0) return 1;
@@ -156,13 +153,8 @@ int main(int argc, char *argv[])
 
    
     while(alarmCount < 4){
-        if(sendFrame(buf, BUF_SIZE, fd) != 0){
-            // printf("Nice Alarm %d \n", alarmCount);
-        }
-        else break;
+        if(sendFrame(buf, BUF_SIZE, fd) == 0) break;
     }    
-
-    printf("Written \n");
 
     //if(buf[i] == FLAG && i != 0) STOP = TRUE;
 

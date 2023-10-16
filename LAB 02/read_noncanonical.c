@@ -12,6 +12,15 @@
 #include <unistd.h>
 #include <signal.h>
 
+typedef enum {
+    START,
+    FLAG_S,
+    A_S,
+    C_S,
+    BCC_S,
+    END
+} StateMachine;
+
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
 #define BAUDRATE B38400
@@ -98,6 +107,8 @@ int main(int argc, char *argv[])
     unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
     int i = 0;
     int bytes = read(fd, buf, BUF_SIZE);
+
+    StateMachine state = START;
 
     while (STOP == FALSE)
     {
