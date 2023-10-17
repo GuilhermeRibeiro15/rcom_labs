@@ -48,7 +48,6 @@ int llopen(LinkLayer connectionParameters) {
     }
 
     unsigned char single;
-    max_time = connectionParameters.timeout;
 
     if(connectionParameters.role == LlTx) {
 
@@ -58,10 +57,10 @@ int llopen(LinkLayer connectionParameters) {
         while(connectionParameters.nRetransmissions != 0 && state != END) {
 
             unsigned char buf[BUF_SIZE] = {FLAG, A, C, BCC, FLAG};
-            write(fd, buf, 5);
+            write(fd, buf, BUF_SIZE);
 
             alarm(connectionParameters.timeout);
-            alarmEnabled = TRUE;
+            alarmEnabled = FALSE;
 
             while(alarmEnabled == FALSE && state != END){
                 if(read(fd, &single, 1) != 0) {
@@ -133,7 +132,7 @@ int llopen(LinkLayer connectionParameters) {
             }
         }    
         unsigned char buf1[BUF_SIZE] = {FLAG, A_UA, C_UA, BCC_UA, FLAG};
-        write(fd, buf1, 5);
+        write(fd, buf1, BUF_SIZE);
     }
     else return -1;
 
@@ -169,9 +168,55 @@ int llread(unsigned char *packet)
     return 0;
 }
 
-int llclose(int showStatistics)
-{
-    // TODO
+int llclose(int showStatistics, int nRetransmissions, int timeout, LinkLayerRole role) {
+    StateMachine state;
 
+    unsigned char single;
+
+    if(role == LlTx){
+        state = START;
+        (void)signal(SIGALRM, alarmHandler);
+
+        while(nRetransmissions != 0 && state != END) {
+
+            unsigned char buf[BUF_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
+            write(showStatistics, buf, BUF_SIZE);
+
+            alarm(timeout);
+            alarmEnabled = FALSE;
+
+            while(alarmEnabled == FALSE && state != END){
+                if(read(fd, &single, 1) != 0) {
+                    switch(state){
+                        case START:
+                            if(single == FLAG) state = FLAG_T;
+                            break;
+                        case FLAG_T:
+                            if(single == A) state = A_T;
+                            else if(single == FLAG) break;
+                            else state = START;
+                            break;
+                        case A_T:
+                            if(single == C_DISC) state = C_T;
+                            else if(single == FLAG) state = FLAG_T;
+                            else state = START;
+                            break;
+                        case C_T:
+                            if(single == BCC_DISC) state = BCC_T;
+                            else if(single == FLAG) state = FLAG_T;
+                            else state = START;
+                            break;  
+                        case BCC_T:
+                            if(single == FLAG) state = END; 
+                            else state = START;
+                            break;   
+                        default:
+                            break;                 
+                    }
+                }
+            }
+            connectionParameters.nRetransmissions -= 1;
+        }
+    }
     return 1;
 }

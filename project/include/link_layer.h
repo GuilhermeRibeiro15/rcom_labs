@@ -57,6 +57,9 @@ typedef enum
 #define C_UA 0x07
 #define BCC_UA (A_UA ^ C_UA)
 
+#define C_DISC 0x0B
+#define BCC_DISC (A ^ C_DISC)
+
 #define BUF_SIZE 5
 
 // Open a connection using the "port" parameters defined in struct linkLayer.
