@@ -4,8 +4,10 @@
 
 int alarmCount = 0;
 int alarmEnabled = FALSE;
-int max_time = 0;
-int retries = 0;
+int tries = 0;
+int maxtime = 0;
+LinkLayerRole role;
+
 
 #define _POSIX_SOURCE 1 
 
@@ -48,18 +50,21 @@ int llopen(LinkLayer connectionParameters) {
     }
 
     unsigned char single;
+    tries = connectionParameters.nRetransmissions;
+    maxtime = connectionParameters.timeout;
+    role = connectionParameters.role;
 
     if(connectionParameters.role == LlTx) {
 
         (void)signal(SIGALRM, alarmHandler);
         state = START;
 
-        while(connectionParameters.nRetransmissions != 0 && state != END) {
+        while(connectionParameters.tries != 0 && state != END) {
 
             unsigned char buf[BUF_SIZE] = {FLAG, A, C, BCC, FLAG};
             write(fd, buf, BUF_SIZE);
 
-            alarm(connectionParameters.timeout);
+            alarm(connectionParameters.maxtime);
             alarmEnabled = FALSE;
 
             while(alarmEnabled == FALSE && state != END){
@@ -92,7 +97,7 @@ int llopen(LinkLayer connectionParameters) {
                     }
                 }
             }
-            connectionParameters.nRetransmissions -= 1;
+            connectionParameters.tries -= 1;
         }
 
         if(state != END) return -1;
@@ -168,7 +173,7 @@ int llread(unsigned char *packet)
     return 0;
 }
 
-int llclose(int showStatistics, int nRetransmissions, int timeout, LinkLayerRole role) {
+int llclose(int showStatistics) {
     StateMachine state;
 
     unsigned char single;
@@ -177,12 +182,12 @@ int llclose(int showStatistics, int nRetransmissions, int timeout, LinkLayerRole
         state = START;
         (void)signal(SIGALRM, alarmHandler);
 
-        while(nRetransmissions != 0 && state != END) {
+        while(tries != 0 && state != END) {
 
             unsigned char buf[BUF_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
             write(showStatistics, buf, BUF_SIZE);
 
-            alarm(timeout);
+            alarm(maxtime);
             alarmEnabled = FALSE;
 
             while(alarmEnabled == FALSE && state != END){
@@ -215,8 +220,48 @@ int llclose(int showStatistics, int nRetransmissions, int timeout, LinkLayerRole
                     }
                 }
             }
-            connectionParameters.nRetransmissions -= 1;
+            connectionParameters.tries -= 1;
         }
     }
+    else if(role == LlRx){
+        state = START;
+
+        while(alarmEnabled == FALSE && state != END){
+            if(read(fd, &single, 1) != 0) {
+                switch(state){
+                    case START:
+                        if(single == FLAG) state = FLAG_T;
+                        break;
+                    case FLAG_T:
+                        if(single == A) state = A_T;
+                        else if(single == FLAG) break;
+                        else state = START;
+                        break;
+                    case A_T:
+                        if(single == C_DISC) state = C_T;
+                        else if(single == FLAG) state = FLAG_T;
+                        else state = START;
+                        break;
+                    case C_T:
+                        if(single == BCC_DISC) state = BCC_T;
+                        else if(single == FLAG) state = FLAG_T;
+                        else state = START;
+                        break;  
+                    case BCC_T:
+                        if(single == FLAG) state = END; 
+                        else state = START;
+                        break;   
+                    default:
+                        break;                 
+                }
+            }
+        }
+        unsigned char buf[BUF_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
+        write(showStatistics, buf, BUF_SIZE);
+    }
+    else return -1;
+
+    if(close(showStatistics) < 0) return -1;
+    
     return 1;
 }
