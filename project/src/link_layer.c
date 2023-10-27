@@ -11,13 +11,18 @@ LinkLayerRole role;
 
 #define _POSIX_SOURCE 1 
 
+void alarmHandler(int signal)
+{
+    alarmEnabled = FALSE;
+    alarmCount++;
+}
+
 int llopen(LinkLayer connectionParameters) {
     StateMachine state;
 
     int fd = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY);
     
     if (fd < 0){
-        perror(serialPortName);
         return -1;
     }
 
@@ -32,7 +37,7 @@ int llopen(LinkLayer connectionParameters) {
 
     memset(&newtio, 0, sizeof(newtio));
 
-    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+    newtio.c_cflag = connectionParameters.baudRate | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
 
@@ -59,12 +64,16 @@ int llopen(LinkLayer connectionParameters) {
         (void)signal(SIGALRM, alarmHandler);
         state = START;
 
-        while(connectionParameters.tries != 0 && state != END) {
+        while(connectionParameters.nRetransmissions != 0 && state != END) {
 
             unsigned char buf[BUF_SIZE] = {FLAG, A, C, BCC, FLAG};
-            write(fd, buf, BUF_SIZE);
+            printf("Sendidng SET\n");
+            int bytes = write(fd, buf, BUF_SIZE);
 
-            alarm(connectionParameters.maxtime);
+            if(bytes < 0) return -1;
+            else printf("Sent successfully\n");
+
+            alarm(connectionParameters.timeout);
             alarmEnabled = FALSE;
 
             while(alarmEnabled == FALSE && state != END){
@@ -97,11 +106,10 @@ int llopen(LinkLayer connectionParameters) {
                     }
                 }
             }
-            connectionParameters.tries -= 1;
+            connectionParameters.nRetransmissions -= 1;
         }
 
         if(state != END) return -1;
-        printf("could not pass the state machine");
     }
     else if(connectionParameters.role == LlRx){
         state = START;
@@ -144,11 +152,7 @@ int llopen(LinkLayer connectionParameters) {
     return fd;
 }
 
-void alarmHandler(int signal)
-{
-    alarmEnabled = FALSE;
-    alarmCount++;
-}
+
 
 int llwrite(const unsigned char *buf, int bufSize)
 {
@@ -160,7 +164,8 @@ int llwrite(const unsigned char *buf, int bufSize)
     frame[2] = C;
     frame[3] = BCC;
     
-
+    memcpy(frame + 4, buf, bufSize);
+    unsigned char bcc2 = buf[0];
 
 
     return 0;
@@ -191,7 +196,7 @@ int llclose(int showStatistics) {
             alarmEnabled = FALSE;
 
             while(alarmEnabled == FALSE && state != END){
-                if(read(fd, &single, 1) != 0) {
+                if(read(showStatistics, &single, 1) != 0) {
                     switch(state){
                         case START:
                             if(single == FLAG) state = FLAG_T;
@@ -220,14 +225,14 @@ int llclose(int showStatistics) {
                     }
                 }
             }
-            connectionParameters.tries -= 1;
+            tries -= 1;
         }
     }
     else if(role == LlRx){
         state = START;
 
         while(alarmEnabled == FALSE && state != END){
-            if(read(fd, &single, 1) != 0) {
+            if(read(showStatistics, &single, 1) != 0) {
                 switch(state){
                     case START:
                         if(single == FLAG) state = FLAG_T;
