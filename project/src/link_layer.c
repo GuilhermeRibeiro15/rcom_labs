@@ -110,6 +110,7 @@ int llopen(LinkLayer connectionParameters) {
         }
 
         if(state != END) return -1;
+        else printf("Received UA\n");
     }
     else if(connectionParameters.role == LlRx){
         state = START;
@@ -144,8 +145,14 @@ int llopen(LinkLayer connectionParameters) {
                 }
             }
         }    
+
+        if(state == END) printf("Received SET\n");
+
         unsigned char buf1[BUF_SIZE] = {FLAG, A_UA, C_UA, BCC_UA, FLAG};
-        write(fd, buf1, BUF_SIZE);
+        printf("Sending UA\n");
+        int bytes = write(fd, buf1, BUF_SIZE);
+        if(bytes < 0) return -1;
+        else printf("Sent successfully\n");
     }
     else return -1;
 
