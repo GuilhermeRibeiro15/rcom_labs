@@ -6,6 +6,7 @@ int alarmCount = 0;
 int alarmEnabled = FALSE;
 int tries = 0;
 int maxtime = 0;
+int tt = 0
 LinkLayerRole role;
 
 
@@ -168,11 +169,37 @@ int llwrite(const unsigned char *buf, int bufSize)
     
     frame[0] = FLAG;
     frame[1] = A;
-    frame[2] = C;
-    frame[3] = BCC;
+    frame[2] = (tt << 6);
+    frame[3] = (A ^ (tt << 6));
     
-    memcpy(frame + 4, buf, bufSize);
-    unsigned char bcc2 = buf[0];
+    char bcc2 = 0x00;
+    for(int i = 0; i < BUF_SIZE; i++) bcc2 = bcc2 ^ buf[i];
+
+    int index = 4;
+
+    for(int i = 0; i < BUF_SIZE; i++){
+        if(buf[i] == FLAG){
+            frame[index] = 0x7D;
+            index++;
+            frame[index] = 0x5E;
+            index++;
+        }
+        else if(buf[i] == 0x7D){
+            frame[index] = 0x7D;
+            index++;
+            frame[index] = 0x5D;
+            index++;
+        }
+        else{
+            frame[index] = buf[i];
+            index++;
+        }
+    }
+
+    frame[index] = bcc2;
+    index++;
+    frame[index] = FLAG;
+    index++;
 
 
     return 0;
