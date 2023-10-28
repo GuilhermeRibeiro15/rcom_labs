@@ -2,6 +2,7 @@
 
 #include "link_layer.h"
 
+int fd_global;
 int alarmCount = 0;
 int alarmEnabled = FALSE;
 int tries = 0;
@@ -26,6 +27,8 @@ int llopen(LinkLayer connectionParameters) {
     if (fd < 0){
         return -1;
     }
+
+    fd_global = fd;
 
     struct termios oldtio;
     struct termios newtio;
@@ -201,7 +204,30 @@ int llwrite(const unsigned char *buf, int bufSize)
     frame[index] = FLAG;
     index++;
 
+    alarmCount = 0;
+    int STOP = FALSE;
+    alarmEnabled = FALSE;
+    unsigned char v[5];
 
+    while(alarmCount < tries && STOP == FALSE) {
+        if(alarmEnabled == FALSE){
+            alarm(maxtime);
+            alarmEnabled = TRUE;
+            write(fd_global, frame, index);
+            pritnf("frame sent");
+        }
+
+        if(read(fd_global, v, 5) > 0){
+            if(v[2] != (!infoFlag << 7 | 0x05)) alarmEnabled = FALSE;
+            else if (v[3] != (v[1] ^ v[2])) alarmEnabled = FALSE;
+            else STOP = TRUE;
+        }
+    }
+
+    if(STOP == FALSE){
+        prinf("alarm timed out");
+        return -1;
+    }
     return 0;
 }
 
