@@ -228,13 +228,49 @@ int llwrite(const unsigned char *buf, int bufSize)
         printf("alarm timed out");
         return -1;
     }
+
+    free(frame);
     return 0;
 }
 
-int llread(unsigned char *packet)
-{
-    // TODO
+int llread(unsigned char *packet) {
+    unsigned char single, c;
+    StateMachine state = START;
 
+    while(state != END){
+        if(read(fd_global, &single, 1) > 0){
+            switch(state){
+                case START:
+                    if(single == FLAG) state = FLAG_T;
+                    break;
+                case FLAG_T:
+                    if(single == A) state = A_T;
+                    else if(single == FLAG) break;
+                    else state = START;
+                    break;
+                case A_T:
+                    if(single == (0 << 6) || single == (1 << 6)){
+                        c = single;
+                        state = C_T;
+                    }    
+                    else if(single == FLAG_T) state = FLAG_T;
+                    else state = START;
+                    break;
+                case C_T:
+                    if(single == (A ^ (c << 6))) state = R_PACKET;
+                    else if(single == FLAG) state = FLAG_T;
+                    else state = START;
+                    break;  
+                case BCC_T:
+                    if(single == FLAG) state = END; 
+                    else state = START;
+                    break;   
+                default:
+                    break;                 
+            }
+        }
+    }
+    
     return 0;
 }
 

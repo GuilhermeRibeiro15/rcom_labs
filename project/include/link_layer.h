@@ -37,6 +37,7 @@ typedef enum
     C_T,
     BCC_T,
     END,
+    R_PACKET,
 } StateMachine;
 
 // SIZE of maximum acceptable payload.
