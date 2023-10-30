@@ -7,7 +7,8 @@ int alarmCount = 0;
 int alarmEnabled = FALSE;
 int tries = 0;
 int maxtime = 0;
-int tt = 0;
+int tr = 0;
+int previous = 1;
 LinkLayerRole role;
 
 
@@ -172,8 +173,8 @@ int llwrite(const unsigned char *buf, int bufSize)
     
     frame[0] = FLAG;
     frame[1] = A;
-    frame[2] = (tt << 6);
-    frame[3] = (A ^ (tt << 6));
+    frame[2] = (tr << 6);
+    frame[3] = (A ^ (tr << 6));
     
     char bcc2 = 0x00;
     for(int i = 0; i < BUF_SIZE; i++) bcc2 = bcc2 ^ buf[i];
@@ -218,7 +219,7 @@ int llwrite(const unsigned char *buf, int bufSize)
         }
 
         if(read(fd_global, v, 5) > 0){
-            if(v[2] != (!tt << 7 | 0x05)) alarmEnabled = FALSE;
+            if(v[2] != (!tr << 7 | 0x05)) alarmEnabled = FALSE;
             else if (v[3] != (v[1] ^ v[2])) alarmEnabled = FALSE;
             else STOP = TRUE;
         }
@@ -229,6 +230,10 @@ int llwrite(const unsigned char *buf, int bufSize)
         return -1;
     }
 
+    previous = tr;
+    if(tr) tr = 0;
+    else tr = 1;
+
     free(frame);
     return 0;
 }
@@ -236,41 +241,141 @@ int llwrite(const unsigned char *buf, int bufSize)
 int llread(unsigned char *packet) {
     unsigned char single, c;
     StateMachine state = START;
+    int size = 0;
+    unsigned char infoFrame[999];
 
     while(state != END){
         if(read(fd_global, &single, 1) > 0){
             switch(state){
                 case START:
-                    if(single == FLAG) state = FLAG_T;
+                    if(single == FLAG){
+                        state = FLAG_T;
+                        infoFrame[size] = single;
+                        size++;
+                    }    
                     break;
                 case FLAG_T:
-                    if(single == A) state = A_T;
-                    else if(single == FLAG) break;
+                    if(single == A){
+                        state = A_T;
+                        infoFrame[size] = single,
+                        size++;
+                    }    
+                    else if(single == FLAG) state = FLAG_T;
                     else state = START;
                     break;
                 case A_T:
-                    if(single == (0 << 6) || single == (1 << 6)){
-                        c = single;
-                        state = C_T;
-                    }    
-                    else if(single == FLAG_T) state = FLAG_T;
-                    else state = START;
+                    if(single == FLAG){
+                        state = END;
+                        infoFrame[size] = single;
+                        size++;
+                    }
+                    else{
+                        infoFrame[size] = single;
+                        size++;
+                    }
                     break;
-                case C_T:
-                    if(single == (A ^ (c << 6))) state = R_PACKET;
-                    else if(single == FLAG) state = FLAG_T;
-                    else state = START;
-                    break;  
-                case BCC_T:
-                    if(single == FLAG) state = END; 
-                    else state = START;
-                    break;   
                 default:
                     break;                 
             }
         }
     }
+
+    unsigned char receiverFrame[5];
+    receiverFrame[0] = FLAG;
+    receiverFrame[1] = A;
+    receiverFrame[4] = FLAG;
+
+    if(infoFrame[2] != (tr << 6)){
+        receiverFrame[2] = (tr << 7) | 0x01;
+        receiverFrame[3] = A ^ receiverFrame[2];
+        write(fd_global, receiverFrame, 5);
+
+        return -1;
+    }
+    else if(infoFrame[3] != (A ^ infoFrame[2])){
+        receiverFrame[2] = (tr << 7) | 0x01;
+        receiverFrame[3] = A ^ receiverFrame[2];
+        write(fd_global, receiverFrame, 5);
+
+        return -1;
+    }
+
+    int index = 0;
+    for(int i = 0; i < size; i++){
+
+        if(i = size - 1){
+            packet[index] = infoFrame[i];
+            index++;
+            break;
+        }
+
+
+        if(infoFrame[i] == 0x7D && infoFrame[i+1] == 0x5e){
+            i++;
+            packet[index] = FLAG;
+            index++;
+        }
+        else if(infoFrame[i] == 0x7D && infoFrame[i+1] == 0x5d){
+            i++;
+            packet[index] = 0x7d;
+            index++;
+        }
+        else{
+            packet[index] = infoFrame[i];
+            index++;
+        }
+        
+    }
+
+    int data_control = 0;
+    unsigned char bcc2 = 0x00;
+    int packetSize = 0;
+    if(packet[4] == 0x01){
+        data_control = 0;
+        packetSize = 9 + (256*packet[6]) + packet[7];
+    }    
+    else{
+        data_control = 1;
+        packetSize += packet[6] + 7;
+        packetSize += packet[size + 2] + 4;
+    }
+
+    int checkbcc2 = 4;
+    while(checkbcc2 < packetSize - 1){
+        bcc2 = bcc2 ^ packet[checkbcc2];
+        checkbcc2++;
+    }
     
+    if(packet[packetSize - 1] == bcc2){
+        if(!data_control){
+            if(infoFrame[5] == previous){
+                printf("duplicate frame");
+                receiverFrame[2] = (!tr << 7) | 0x05;
+                receiverFrame[3] = receiverFrame[1] ^ receiverFrame[2];
+                write(fd_global, receiverFrame, 5);
+                if(tr) tr = 0;
+                else tr = 1;
+                return -1;
+            }
+            else previous = infoFrame[5];
+        }
+
+        receiverFrame[2] = (!tr << 7) | 0x05;
+        receiverFrame[3] = receiverFrame[1] ^ receiverFrame[2];
+        write(fd_global, receiverFrame, 5); 
+    }
+    else{
+        receiverFrame[2] = (tr << 7) | 0x01;
+        receiverFrame[3] = receiverFrame[1] ^ receiverFrame[2];
+        write(fd_global, receiverFrame, 5);
+
+        return -1;
+    }
+
+
+    previous = tr;
+    if(tr) tr = 0;
+    else tr = 1;
     return 0;
 }
 
