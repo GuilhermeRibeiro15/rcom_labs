@@ -25,7 +25,9 @@ int llopen(LinkLayer connectionParameters) {
 
     int fd = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY);
     
+    
     if (fd < 0){
+        printf("reached here \n");
         return -1;
     }
 
@@ -113,7 +115,7 @@ int llopen(LinkLayer connectionParameters) {
             }
             connectionParameters.nRetransmissions -= 1;
         }
-
+        
         if(state != END) return -1;
         else printf("Received UA\n");
     }
@@ -239,7 +241,7 @@ int llwrite(const unsigned char *buf, int bufSize)
 }
 
 int llread(unsigned char *packet) {
-    unsigned char single, c;
+    unsigned char single;
     StateMachine state = START;
     int size = 0;
     unsigned char infoFrame[999];
@@ -303,7 +305,7 @@ int llread(unsigned char *packet) {
     int index = 0;
     for(int i = 0; i < size; i++){
 
-        if(i = size - 1){
+        if(i == size - 1){
             packet[index] = infoFrame[i];
             index++;
             break;

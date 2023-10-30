@@ -20,7 +20,10 @@ void applicationLayer(const char *serialport, const char *role, int baudrate,
     linklayer.baudRate = baudrate;
     linklayer.nRetransmissions = nTries;
     linklayer.timeout = timeOut;
-    *linklayer.serialPort = (char)*serialport;
+    
+    strcpy(linklayer.serialPort, serialport);
+
+
 
     if (strcmp(role, "tx") == 0){
         linklayer.role = LlTx;
@@ -52,7 +55,7 @@ int enviaFile(const char *filename)
     if (llopen(linklayer) < 0)
     {
         printf("Couldn't establish connection with receiver\n");
-        closePort();
+        llclose(TRANSMITTER);
         return -1;
     }
 
@@ -72,7 +75,7 @@ int enviaFile(const char *filename)
     if (llwrite(controlStart, controlStartSize) < 0)
     {
         printf("Couldn't write initial control packet\n");
-        closePort();
+        llclose(TRANSMITTER);
         return -1;
     }
 
@@ -98,7 +101,7 @@ int enviaFile(const char *filename)
                 if (llwrite(dataPacket, dataPacketSize) < 0)
                 {
                     printf("Couldn't write file info\n");
-                    closePort();
+                    llclose(TRANSMITTER);
                     return -1;
                 }
                 break;
@@ -106,7 +109,7 @@ int enviaFile(const char *filename)
             else
             {
                 printf("Reading less bytes than supposed and it is not end of file\n");
-                closePort();
+                llclose(TRANSMITTER);
                 return -1;
             }
         }
@@ -115,7 +118,7 @@ int enviaFile(const char *filename)
         if (llwrite(dataPacket, dataPacketSize) < 0)
         {
             printf("Couldn't write file info\n");
-            closePort();
+            llclose(TRANSMITTER);
             return -1;
         }
     }
@@ -128,14 +131,14 @@ int enviaFile(const char *filename)
     if (llwrite(controlEnd, controlEndSize) < 0)
     {
         printf("Couldn't write ending control packet\n");
-        closePort();
+        llclose(TRANSMITTER);
         return -1;
     }
 
     if (fclose(file) != 0)
     {
         printf("Error closing file\n");
-        closePort();
+        llclose(TRANSMITTER);
         return -1;
     }
 
@@ -156,7 +159,7 @@ int recebeFile(const char *filename)
     if (llopen(linklayer) < 0)
     {
         printf("Couldn't establish connection with transmitter\n");
-        closePort();
+        llclose(RECEIVER);
         return -1;
     }
 
@@ -166,7 +169,7 @@ int recebeFile(const char *filename)
     if (llread(control) < 0)
     {
         printf("Error reading control packet");
-        closePort();
+        llclose(RECEIVER);
         return -1;
     }
 
@@ -177,7 +180,7 @@ int recebeFile(const char *filename)
     if (deconstructControlPacket(control, START, fileName, &fileLength) < 0)
     {
         printf("Initial control packet wrong\n");
-        closePort();
+        llclose(RECEIVER);
         return -1;
     }
 
@@ -187,7 +190,7 @@ int recebeFile(const char *filename)
     if (file == NULL)
     {
         printf("Couldn't open file\n");
-        closePort();
+        llclose(RECEIVER);
         return -1;
     }
 
@@ -239,7 +242,7 @@ int recebeFile(const char *filename)
 
     if (fclose(file) != 0)
     {
-        closePort();
+        llclose(RECEIVER);
         printf("Error closing file\n");
         return -1;
     }
@@ -248,7 +251,6 @@ int recebeFile(const char *filename)
     if (llclose(RECEIVER) < 0)
     {
         printf("Couldn't close file\n");
-        closePort();
         return -1;
     }
 
