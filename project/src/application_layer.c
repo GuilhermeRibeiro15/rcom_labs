@@ -69,7 +69,7 @@ int enviaFile(const char *filename)
 
     // build START control packet
     unsigned char controlStart[MAX_BUF_SIZE];
-    int controlStartSize = constructControlPacket(controlStart, START, filename, fileLength);
+    int controlStartSize = constructControlPacket(controlStart, START_PACKET, filename, fileLength);
 
     printf("Sending initial control packet\n");
     if (llwrite(controlStart, controlStartSize) < 0)
@@ -78,6 +78,8 @@ int enviaFile(const char *filename)
         llclose(TRANSMITTER);
         return -1;
     }
+    
+    printf("Wrote initial control packet\n");
 
     unsigned char data[MAX_DATA_SIZE];
     unsigned char dataPacket[MAX_DATA_SIZE];
@@ -125,7 +127,7 @@ int enviaFile(const char *filename)
 
     // build END control packet
     unsigned char controlEnd[DATA_SIZE + 4];
-    int controlEndSize = constructControlPacket(controlEnd, END, filename, fileLength);
+    int controlEndSize = constructControlPacket(controlEnd, END_PACKET, filename, fileLength);
 
     printf("Sending ending control packet\n");
     if (llwrite(controlEnd, controlEndSize) < 0)
@@ -172,17 +174,19 @@ int recebeFile(const char *filename)
         llclose(RECEIVER);
         return -1;
     }
+    printf("Read the control packet\n");
 
     char fileName[MAX_BUF_SIZE];
     int fileLength = 0;
 
     // disassemble START control packet
-    if (deconstructControlPacket(control, START, fileName, &fileLength) < 0)
+    if (deconstructControlPacket(control, START_PACKET, fileName, &fileLength) < 0)
     {
         printf("Initial control packet wrong\n");
         llclose(RECEIVER);
         return -1;
     }
+    else printf("Initial control packet correct\n");
 
     // open file to write
     FILE *file = fopen(fileName, "w");
@@ -218,7 +222,7 @@ int recebeFile(const char *filename)
         }
 
         // ending control packet was read
-        else if (dataPacket[0] == END)
+        else if (dataPacket[0] == END_PACKET)
             break;
     }
 
@@ -227,7 +231,7 @@ int recebeFile(const char *filename)
 
     printf("Ending control packet detected\n");
     // deconstruct START control packet
-    if (deconstructControlPacket(dataPacket, END, fileName, &fileLength) < 0)
+    if (deconstructControlPacket(dataPacket, END_PACKET, fileName, &fileLength) < 0)
     {
         printf("Ending control packet wrong\n");
         return -1;

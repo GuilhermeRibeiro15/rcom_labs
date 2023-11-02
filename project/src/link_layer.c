@@ -178,12 +178,18 @@ int llwrite(const unsigned char *buf, int bufSize)
     frame[2] = (tr << 6);
     frame[3] = (A ^ (tr << 6));
     
-    char bcc2 = 0x00;
-    for(int i = 0; i < BUF_SIZE; i++) bcc2 = bcc2 ^ buf[i];
+    char bcc2 = buf[0];
+    printf("buf[0] = %02X\n", buf[0]);
+    for(int i = 1; i < bufSize; i++){
+        printf("buf[%d] = %02X\n", i,buf[i]);
+        bcc2 = bcc2 ^ buf[i];
+    }    
 
     int index = 4;
 
-    for(int i = 0; i < BUF_SIZE; i++){
+    printf("before the first for cicle \n");
+    for(int i = 0; i < bufSize; i++){
+
         if(buf[i] == FLAG){
             frame[index] = 0x7D;
             index++;
@@ -201,9 +207,26 @@ int llwrite(const unsigned char *buf, int bufSize)
             index++;
         }
     }
-
-    frame[index] = bcc2;
-    index++;
+    printf("After the first for cicle \n");
+    printf("BufSize = %d\n", bufSize);
+    printf("bbc2 = %u\n", (unsigned int)bcc2);
+    
+    if (bcc2 == 0x7E) {
+        frame[index] = 0x7D;
+        index++;
+        frame[index] = 0x5E;
+        index++;
+    }
+    else if (bcc2 == 0x7D) {
+        frame[index] = 0x7D;
+        index++;
+        frame[index] = 0x5D;
+        index++;
+    }
+    else {
+        frame[index] = bcc2;
+        index++;
+    }
     frame[index] = FLAG;
     index++;
 
@@ -212,23 +235,36 @@ int llwrite(const unsigned char *buf, int bufSize)
     alarmEnabled = FALSE;
     unsigned char v[5];
 
+    printf("before the alarm cicle \n");
     while(alarmCount < tries && STOP == FALSE) {
         if(alarmEnabled == FALSE){
+            printf("sending frame \n");
             alarm(maxtime);
             alarmEnabled = TRUE;
             write(fd_global, frame, index);
-            printf("frame sent");
+            printf("frame sent \n");
         }
 
         if(read(fd_global, v, 5) > 0){
-            if(v[2] != (!tr << 7 | 0x05)) alarmEnabled = FALSE;
-            else if (v[3] != (v[1] ^ v[2])) alarmEnabled = FALSE;
+            if(v[2] != (!tr << 7 | 0x05)){
+                alarmEnabled = FALSE;
+                printf("tr = %d\n", tr);
+                printf("v[2] maybe = %u \n", (unsigned int) (tr << 7 | 0x01));
+                printf("v[2] expected = %u \n", (unsigned int) (!tr << 7 | 0x05));
+                printf("v[2] actual = %u \n", (unsigned int) v[2]);
+                printf("First error\n");
+            } 
+            else if (v[3] != (v[1] ^ v[2])){
+                alarmEnabled = FALSE;
+                printf("Second error\n");
+            } 
             else STOP = TRUE;
         }
     }
+    printf("after the alarm cicle \n");
 
     if(STOP == FALSE){
-        printf("alarm timed out");
+        printf("alarm timed out \n");
         return -1;
     }
 
@@ -246,6 +282,7 @@ int llread(unsigned char *packet) {
     int size = 0;
     unsigned char infoFrame[999];
 
+    printf("Before the first while\n");
     while(state != END){
         if(read(fd_global, &single, 1) > 0){
             switch(state){
@@ -257,13 +294,14 @@ int llread(unsigned char *packet) {
                     }    
                     break;
                 case FLAG_T:
-                    if(single == A){
-                        state = A_T;
-                        infoFrame[size] = single,
-                        size++;
+                    if(single == FLAG){
+                        state = FLAG_T;
                     }    
-                    else if(single == FLAG) state = FLAG_T;
-                    else state = START;
+                    else {
+                        state = A_T;
+                        infoFrame[size] = single;
+                        size++;
+                    }
                     break;
                 case A_T:
                     if(single == FLAG){
@@ -281,13 +319,17 @@ int llread(unsigned char *packet) {
             }
         }
     }
+    printf("After the first while\n");
+    if(state == END) printf("state end, size = %d\n", size);
 
     unsigned char receiverFrame[5];
     receiverFrame[0] = FLAG;
     receiverFrame[1] = A;
     receiverFrame[4] = FLAG;
 
+
     if(infoFrame[2] != (tr << 6)){
+        printf("infoFrame[2] != (tr << 6) \n");
         receiverFrame[2] = (tr << 7) | 0x01;
         receiverFrame[3] = A ^ receiverFrame[2];
         write(fd_global, receiverFrame, 5);
@@ -295,12 +337,14 @@ int llread(unsigned char *packet) {
         return -1;
     }
     else if(infoFrame[3] != (A ^ infoFrame[2])){
+        printf("infoFrame[3] != (A ^ infoFrame[2]) \n");
         receiverFrame[2] = (tr << 7) | 0x01;
         receiverFrame[3] = A ^ receiverFrame[2];
         write(fd_global, receiverFrame, 5);
 
         return -1;
     }
+    else printf("No errors in infoFrame\n");
 
     int index = 0;
     for(int i = 0; i < size; i++){
@@ -328,26 +372,31 @@ int llread(unsigned char *packet) {
         }
         
     }
+    printf("After the destuffing, index = %d\n", index);
 
     int data_control = 0;
     unsigned char bcc2 = 0x00;
     int packetSize = 0;
     if(packet[4] == 0x01){
+        printf("data\n");
         data_control = 0;
         packetSize = 9 + (256*packet[6]) + packet[7];
     }    
     else{
+        printf("control\n");
         data_control = 1;
         packetSize += packet[6] + 7;
-        packetSize += packet[size + 2] + 4;
+        packetSize += packet[packetSize + 2] + 4;
     }
 
-    int checkbcc2 = 4;
-    while(checkbcc2 < packetSize - 1){
-        bcc2 = bcc2 ^ packet[checkbcc2];
-        checkbcc2++;
+    for(int i = 4; i < index -1; i++){
+        printf("packet[%d] = %02X\n", i - 4,packet[i]);
+        bcc2 = bcc2 ^ packet[i];
     }
+    printf("packetsize = %d\n",packetSize);
+    printf("bcc2 read = %02X\n", bcc2);
     
+    printf("before the packetSize == bcc2 if\n");
     if(packet[packetSize - 1] == bcc2){
         if(!data_control){
             if(infoFrame[5] == previous){
@@ -361,16 +410,17 @@ int llread(unsigned char *packet) {
             }
             else previous = infoFrame[5];
         }
-
+        printf("reached here \n");
         receiverFrame[2] = (!tr << 7) | 0x05;
         receiverFrame[3] = receiverFrame[1] ^ receiverFrame[2];
         write(fd_global, receiverFrame, 5); 
     }
     else{
+        printf("packet[packetSize - 1] != bcc2\n");
         receiverFrame[2] = (tr << 7) | 0x01;
         receiverFrame[3] = receiverFrame[1] ^ receiverFrame[2];
         write(fd_global, receiverFrame, 5);
-
+        printf("packet[packetSize - 1] != bcc2 2\n");
         return -1;
     }
 

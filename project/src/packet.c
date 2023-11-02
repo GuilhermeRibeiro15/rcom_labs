@@ -50,34 +50,36 @@ int constructControlPacket(unsigned char *packet, unsigned char control, const c
 
 int deconstructControlPacket(unsigned char *packet, unsigned char control, char *fName, int *fLength)
 {
-    if (packet[0] != control)
+    
+    
+    if (packet[4] != control)
     {
-        printf("Control packet incorrect\n");
+        printf("Control packet incorrect, packet[0] = %02X\n", packet[0]);
         return -1;
     }
 
     int fSize;
 
-    if (packet[1] == 0)
+    if (packet[5] == 0)
     {
-        fSize = packet[2];
+        fSize = packet[6];
 
         // save file length
         for (int i = 0; i < fSize; i++)
         {
-            *fLength = (*fLength) * 256 + packet[3 + i];
+            *fLength = (*fLength) * 256 + packet[7 + i];
         }
 
         int fNameSize;
 
-        if (packet[4 + packet[2] - 1] == 1)
+        if (packet[8 + packet[6] - 1] == 1)
         {
-            fNameSize = packet[5 + packet[2] - 1];
+            fNameSize = packet[9 + packet[6] - 1];
 
             // save file name
             for (int i = 0; i < fNameSize; i++)
             {
-                fName[i] = packet[6 + packet[2] - 1 + i];
+                fName[i] = packet[10 + packet[6] - 1 + i];
             }
         }
 

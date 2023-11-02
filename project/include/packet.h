@@ -2,6 +2,8 @@
 #define _PACKET_H_
 
 #define DATA 1
+#define START_PACKET 2
+#define END_PACKET 3
 
 #define MAX_DATA_SIZE 256
 #define DATA_SIZE 100
