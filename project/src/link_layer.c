@@ -445,7 +445,10 @@ int llclose(int showStatistics) {
 
     unsigned char single;
 
+    printf("LLCLOSE\n");
+
     if(role == LlTx){
+        printf("This is the transmitter \n");
         state = START;
         (void)signal(SIGALRM, alarmHandler);
 
@@ -491,6 +494,7 @@ int llclose(int showStatistics) {
         }
     }
     else if(role == LlRx){
+        printf("This is the receiver \n");
         state = START;
 
         while(alarmEnabled == FALSE && state != END){

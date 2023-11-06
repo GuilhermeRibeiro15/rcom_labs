@@ -242,27 +242,16 @@ int recebeFile(const char *filename)
         }
 
         // ending control packet was read
-        else if (dataPacket[4] == END_PACKET)
+        else if (dataPacket[4] == END_PACKET){
+            printf("\nEnd control\n");
             break;
+        }    
     }
 
     char fileNameEnd[MAX_BUF_SIZE];
     int fileLengthEnd = 0;
 
     printf("Ending control packet detected\n");
-    // deconstruct START control packet
-    if (deconstructControlPacket(dataPacket, END_PACKET, fileName, &fileLength) < 0)
-    {
-        printf("Ending control packet wrong\n");
-        return -1;
-    }
-
-    // compare if START control packet equals END control packet
-    if (strcmp(fileName, fileNameEnd) != 0 || fileLength != fileLengthEnd)
-    {
-        printf("Control packets don't match\n");
-        return -1;
-    }
 
     if (fclose(file) != 0)
     {
@@ -270,6 +259,7 @@ int recebeFile(const char *filename)
         printf("Error closing file\n");
         return -1;
     }
+    printf("Closed the file\n");
 
     // close port
     if (llclose(RECEIVER) < 0)
