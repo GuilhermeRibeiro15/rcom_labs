@@ -10,21 +10,21 @@
 #include <termios.h>
 #include <unistd.h>
 
-int constructControlPacket(unsigned char *packet, unsigned char control, const char *fName, unsigned char fLength)
+int constructControlPacket(unsigned char *packet, unsigned char control, const char *fName, long int fLength)
 {
     packet[0] = control;
 
     // first TLV
     packet[1] = 0;
-    int fSize = 0, auxiliar_length = fLength;
+    int fSize = 0;
 
-    while (auxiliar_length > 256)
+    long int auxFileSize = fLength;
+
+    while (auxFileSize > 0)
     {
-        auxiliar_length /= 256;
+        auxFileSize >>= 8;
         fSize++;
     }
-    if (auxiliar_length > 0)
-        fSize++;
 
     packet[2] = fSize;
 
@@ -35,9 +35,9 @@ int constructControlPacket(unsigned char *packet, unsigned char control, const c
     }
 
     // second TLV
-    packet[4 + fSize - 1] = 1;
-    int fNameSize = strlen(fName) + 1;
-    packet[5 + fSize - 1] = fNameSize;
+    packet[3 + fSize] = 1;
+    int fNameSize = strlen(fName);
+    packet[4 + fSize] = fNameSize;
 
     // serialize the file name into control packet
     for (int i = 0; i < fNameSize; i++)
@@ -88,16 +88,24 @@ int deconstructControlPacket(unsigned char *packet, unsigned char control, char 
     return -1;
 }
 
-int constructDataPacket(unsigned char *packet, unsigned char *data, int dataSize)
+int constructDataPacket(unsigned char *packet,unsigned int size, unsigned int index)
 {
-    packet[0] = 1;
-    packet[1] = dataSize / 256;
-    packet[2] = dataSize % 256;
+    unsigned char buf[500] = {0};
 
-    memcpy(packet + 3, data, dataSize); 
-    // memcpy- Copies the values of num bytes from the location pointed to by source directly to the memory block pointed to by destination.
+    buf[0] = 0x01;
+    buf[1] = index % 255;
+    buf[2] = size/256;
+    buf[3] = size%256;
 
-    return 4 + dataSize;
+    for(int i = 4; i < size; i++){
+        buf[i] = packet[i];
+    }
+
+    for(int j = 0; j < (size + 4); j++){
+        packet[j] = buf[j];
+    }
+
+    return (size + 4);
 }
 
 void deconstructDataPacket(unsigned char *packet, unsigned char *data, int *dataSize)

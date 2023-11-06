@@ -177,13 +177,15 @@ int llwrite(const unsigned char *buf, int bufSize)
     frame[1] = A;
     frame[2] = (tr << 6);
     frame[3] = (A ^ (tr << 6));
-    
-    char bcc2 = buf[0];
+
+    char bcc2 = 0x00;
     printf("buf[0] = %02X\n", buf[0]);
-    for(int i = 1; i < bufSize; i++){
+    for (int i = 0; i < bufSize; i++) {
         printf("buf[%d] = %02X\n", i,buf[i]);
         bcc2 = bcc2 ^ buf[i];
-    }    
+    }
+
+    printf("bcc2 write = %x\n", bcc2);
 
     int index = 4;
 
@@ -209,7 +211,6 @@ int llwrite(const unsigned char *buf, int bufSize)
     }
     printf("After the first for cicle \n");
     printf("BufSize = %d\n", bufSize);
-    printf("bbc2 = %u\n", (unsigned int)bcc2);
     
     if (bcc2 == 0x7E) {
         frame[index] = 0x7D;
@@ -280,7 +281,7 @@ int llread(unsigned char *packet) {
     unsigned char single;
     StateMachine state = START;
     int size = 0;
-    unsigned char infoFrame[999];
+    unsigned char infoFrame[MAX_PAYLOAD_SIZE * 2];
 
     printf("Before the first while\n");
     while(state != END){
@@ -381,20 +382,28 @@ int llread(unsigned char *packet) {
         printf("data\n");
         data_control = 0;
         packetSize = 9 + (256*packet[6]) + packet[7];
+        printf("packetsize = %d \n",packetSize);
     }    
     else{
-        printf("control\n");
+        printf("control\n");\
         data_control = 1;
         packetSize += packet[6] + 7;
         packetSize += packet[packetSize + 2] + 4;
+
+        packetSize = index - 1;
+        printf("packetsize = %d, index = %d \n", packetSize, index);
     }
 
-    for(int i = 4; i < index -1; i++){
+    for(int i = 4; i < packetSize -1; i++){
         printf("packet[%d] = %02X\n", i - 4,packet[i]);
-        bcc2 = bcc2 ^ packet[i];
+        bcc2 ^= packet[i];
     }
-    printf("packetsize = %d\n",packetSize);
-    printf("bcc2 read = %02X\n", bcc2);
+
+
+
+    printf("packetsize = %d \n",index);
+    printf("bbc2 read = %x\n", bcc2);
+    printf("bcc2 in act packet = %x\n", packet[packetSize-1]);
     
     printf("before the packetSize == bcc2 if\n");
     if(packet[packetSize - 1] == bcc2){

@@ -27,10 +27,14 @@ void applicationLayer(const char *serialport, const char *role, int baudrate,
 
     if (strcmp(role, "tx") == 0){
         linklayer.role = LlTx;
+        printf("TRANSMITTER");
+        printf("%s", filename);            
         enviaFile(filename);
     }
     else if (strcmp(role, "rx") == 0){
        linklayer.role = LlRx;
+        printf("RECEIVER");
+        printf("%s", filename);            
        recebeFile(filename); 
     }
     else{
@@ -42,7 +46,7 @@ void applicationLayer(const char *serialport, const char *role, int baudrate,
 
 int enviaFile(const char *filename)
 {
-    // open file to read
+
     FILE *file = fopen(filename, "r");
 
     if (file == NULL)
@@ -62,10 +66,9 @@ int enviaFile(const char *filename)
     printf("Port open and comunication done\n");
 
     // calculate file size by going to the end of the file and asking for the position
-    fseek(file, 0, SEEK_END);
-    int fileLength = ftell(file);
-    // return to the beginning of the file
-    rewind(file);
+    fseek(file, 0L, SEEK_END);
+    long int fileLength = ftell(file);
+    fseek(file, 0L, SEEK_SET);
 
     // build START control packet
     unsigned char controlStart[MAX_BUF_SIZE];
@@ -81,18 +84,35 @@ int enviaFile(const char *filename)
     
     printf("Wrote initial control packet\n");
 
-    unsigned char data[MAX_DATA_SIZE];
-    unsigned char dataPacket[MAX_DATA_SIZE];
+    unsigned char data[MAX_PAYLOAD_SIZE /2]; 
 
-    int dataSize = 0;
-    int dataPacketSize = 0;
+    unsigned int bytes;
+    unsigned int index = 0;
+    int count = 0;
 
+    while ( (bytes = fread(data + 3, 1, (MAX_PAYLOAD_SIZE / 2) - 3 , file)) > 0){
+        index++;
+        count+= bytes;
+        bytes = constructDataPacket(&data, bytes, index);
+
+        printf("Sending data packet now!!!!!!! \n");
+
+        if(llwrite(data, bytes) < 0){
+            printf("Writing data packet fail \n");
+            llclose(TRANSMITTER);
+            return -1;
+        }
+    }
+
+    /*
     while (TRUE)
     {
-        dataSize = fread(data, sizeof(char), DATA_SIZE, file);
+        dataSize = fread(data, sizeof(unsigned char), fileLength, file);
 
         // build information read from the file
         dataPacketSize = constructDataPacket(dataPacket, data, dataSize);
+
+        printf("data packet size %zu:", dataSize);
 
         // If this happens we are in the last data
         if (dataSize < DATA_SIZE)
@@ -106,6 +126,7 @@ int enviaFile(const char *filename)
                     llclose(TRANSMITTER);
                     return -1;
                 }
+                printf("Reached the end of the file");
                 break;
             }
             else
@@ -124,6 +145,7 @@ int enviaFile(const char *filename)
             return -1;
         }
     }
+    */
 
     // build END control packet
     unsigned char controlEnd[DATA_SIZE + 4];
@@ -189,7 +211,7 @@ int recebeFile(const char *filename)
     else printf("Initial control packet correct\n");
 
     // open file to write
-    FILE *file = fopen(fileName, "w");
+    FILE *file = fopen(filename, "w");
 
     if (file == NULL)
     {
@@ -199,30 +221,28 @@ int recebeFile(const char *filename)
     }
 
     unsigned char dataPacket[MAX_DATA_SIZE];
-    unsigned char data[MAX_DATA_SIZE];
     int dataSize = 0;
 
     while (TRUE)
     {
         printf("Reading info packet\n");
-        if (llread(dataPacket) < 0)
+        if (llread(&dataPacket) < 0)
         {
             printf("Error reading info packet");
             return -1;
         }
 
         // data to write to the file was read
-        if (dataPacket[0] == DATA)
+        if (dataPacket[4] == DATA)
         {
-            // deconstruct information read from the serial port
-            deconstructDataPacket(dataPacket, data, &dataSize);
-
             printf("Writing information to file\n");
-            fwrite(data, 1, dataSize, file);
+
+            dataSize = dataPacket[2];
+            fwrite(dataPacket + 3, 1, dataSize, file);
         }
 
         // ending control packet was read
-        else if (dataPacket[0] == END_PACKET)
+        else if (dataPacket[4] == END_PACKET)
             break;
     }
 
