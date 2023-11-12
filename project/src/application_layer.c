@@ -201,15 +201,20 @@ int recebeFile(const char *filename)
 
     while (TRUE)
     {
+
         int r = llread(&dataPacket, &packetSize);
-        printf("PacketSize : %ld \n", packetSize);
+
+        for(int i = 0; i < 15; i++){
+            //printf("dataPacket[%d] = %x  ", i, dataPacket[i]);
+        }
+        printf("\nPacketSize : %ld \n", packetSize);
         if (r < 0)
         {
             printf("Error reading info packet");
             break;
         }
 
-        if(dataPacket[0] == 0x02){
+        if(dataPacket[4] == 0x02){
             printf("Start packet \n");
         }
 
@@ -226,7 +231,8 @@ int recebeFile(const char *filename)
         */
 
         // ending control packet was read
-        else if (dataPacket[0] == END_PACKET){
+        else if (dataPacket[4] == END_PACKET){
+            //printf("dataPacket[6] = %x  ", dataPacket[6]);
             printf("\nEnd control\n");
             break;
         }
@@ -236,9 +242,6 @@ int recebeFile(const char *filename)
             fwrite(&dataPacket[3], 1, packetSize-3, file);
         }   
     }
-
-    char fileNameEnd[MAX_BUF_SIZE];
-    int fileLengthEnd = 0;
 
     printf("Ending control packet detected\n");
 
