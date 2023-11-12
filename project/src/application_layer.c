@@ -74,6 +74,10 @@ int enviaFile(const char *filename)
     unsigned char controlStart[MAX_BUF_SIZE];
     int controlStartSize = constructControlPacket(controlStart, START_PACKET, filename, fileLength);
 
+    for(int i = 0; i < controlStartSize; i++){
+        printf("Control packet start[%d] = %x \n", i, controlStart[i]);
+    }
+
     printf("Sending initial control packet\n");
     if (llwrite(controlStart, controlStartSize) < 0)
     {
@@ -84,73 +88,40 @@ int enviaFile(const char *filename)
     
     printf("Wrote initial control packet\n");
 
-    unsigned char data[MAX_PAYLOAD_SIZE /2]; 
+    
 
-    unsigned int bytes;
-    unsigned int index = 0;
+    unsigned char data[MAX_PAYLOAD_SIZE]; 
+    long int bytes;
+    printf("----------------------------------------------------------------------- \n");
     int count = 0;
+    while ( (bytes = fread(data , 1, sizeof(data), file)) > 0){
+        long int dataPacketSize;
+        unsigned char *packet = constructDataPacket(bytes, data, &dataPacketSize);
+        printf("dataPacketSize %ld \n", dataPacketSize);
 
-    while ( (bytes = fread(data + 3, 1, (MAX_PAYLOAD_SIZE / 2) - 3 , file)) > 0){
-        index++;
-        count+= bytes;
-        bytes = constructDataPacket(&data, bytes, index);
+        for(int i = 0; i < 10; i++){
+            //printf("Data packet[%d] = %x", i, packet[i]);
+        }
 
-        printf("Sending data packet now!!!!!!! \n");
-
-        if(llwrite(data, bytes) < 0){
+        if(llwrite(packet, dataPacketSize) < 0){
             printf("Writing data packet fail \n");
             llclose(TRANSMITTER);
             return -1;
         }
-    }
-
-    /*
-    while (TRUE)
-    {
-        dataSize = fread(data, sizeof(unsigned char), fileLength, file);
-
-        // build information read from the file
-        dataPacketSize = constructDataPacket(dataPacket, data, dataSize);
-
-        printf("data packet size %zu:", dataSize);
-
-        // If this happens we are in the last data
-        if (dataSize < DATA_SIZE)
-        {
-            if (feof(file))
-            {
-                printf("Sending last info packet\n");
-                if (llwrite(dataPacket, dataPacketSize) < 0)
-                {
-                    printf("Couldn't write file info\n");
-                    llclose(TRANSMITTER);
-                    return -1;
-                }
-                printf("Reached the end of the file");
-                break;
-            }
-            else
-            {
-                printf("Reading less bytes than supposed and it is not end of file\n");
-                llclose(TRANSMITTER);
-                return -1;
-            }
+        else {
+            printf("Sent data packet %d \n", count);
+            count++;
         }
 
-        printf("Sending info packet\n");
-        if (llwrite(dataPacket, dataPacketSize) < 0)
-        {
-            printf("Couldn't write file info\n");
-            llclose(TRANSMITTER);
-            return -1;
-        }
+        free(packet);
     }
-    */
+    printf("----------------------------------------------------------------------- \n");
 
     // build END control packet
     unsigned char controlEnd[DATA_SIZE + 4];
     int controlEndSize = constructControlPacket(controlEnd, END_PACKET, filename, fileLength);
 
+    
     printf("Sending ending control packet\n");
     if (llwrite(controlEnd, controlEndSize) < 0)
     {
@@ -158,6 +129,7 @@ int enviaFile(const char *filename)
         llclose(TRANSMITTER);
         return -1;
     }
+    
 
     if (fclose(file) != 0)
     {
@@ -186,18 +158,20 @@ int recebeFile(const char *filename)
         llclose(RECEIVER);
         return -1;
     }
-
+    
     unsigned char control[MAX_DATA_SIZE];
+    long int initialControlSize;
 
+    
     printf("Reading initial control packet\n");
-    if (llread(control) < 0)
+    if (llread(control, &initialControlSize) < 0)
     {
         printf("Error reading control packet");
         llclose(RECEIVER);
         return -1;
     }
     printf("Read the control packet\n");
-
+    
     char fileName[MAX_BUF_SIZE];
     int fileLength = 0;
 
@@ -209,9 +183,9 @@ int recebeFile(const char *filename)
         return -1;
     }
     else printf("Initial control packet correct\n");
-
+    
     // open file to write
-    FILE *file = fopen(filename, "w");
+    FILE *file = fopen(filename, "wb");
 
     if (file == NULL)
     {
@@ -220,19 +194,28 @@ int recebeFile(const char *filename)
         return -1;
     }
 
-    unsigned char dataPacket[MAX_DATA_SIZE];
+    unsigned char dataPacket[MAX_PAYLOAD_SIZE];
     int dataSize = 0;
+    int count = 1;
+    long int packetSize;
 
     while (TRUE)
     {
-        printf("Reading info packet\n");
-        if (llread(&dataPacket) < 0)
+        int r = llread(&dataPacket, &packetSize);
+        printf("PacketSize : %ld \n", packetSize);
+        if (r < 0)
         {
             printf("Error reading info packet");
-            return -1;
+            break;
         }
 
+        if(dataPacket[0] == 0x02){
+            printf("Start packet \n");
+        }
+
+
         // data to write to the file was read
+        /*
         if (dataPacket[4] == DATA)
         {
             printf("Writing information to file\n");
@@ -240,12 +223,18 @@ int recebeFile(const char *filename)
             dataSize = dataPacket[2];
             fwrite(dataPacket + 3, 1, dataSize, file);
         }
+        */
 
         // ending control packet was read
-        else if (dataPacket[4] == END_PACKET){
+        else if (dataPacket[0] == END_PACKET){
             printf("\nEnd control\n");
             break;
-        }    
+        }
+        else if(r == 0){
+            printf("Receiving data packet %d\n", count);
+            count++;
+            fwrite(&dataPacket[3], 1, packetSize-3, file);
+        }   
     }
 
     char fileNameEnd[MAX_BUF_SIZE];

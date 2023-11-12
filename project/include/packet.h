@@ -14,7 +14,7 @@ int constructControlPacket(unsigned char *packet, unsigned char control, const c
 int deconstructControlPacket(unsigned char *packet, unsigned char control, char *fName, int *fLength);
 
 // construct data packet - retorna o seu size
-int constructDataPacket(unsigned char *packet, unsigned int size, unsigned int index);
+unsigned char* constructDataPacket(unsigned int size, unsigned char *packet, long int *packetSize);
 // deconstruct data packet
 void deconstructDataPacket(unsigned char *packet, unsigned char *data, int *dataSize);
 

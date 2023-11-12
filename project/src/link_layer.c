@@ -2,13 +2,14 @@
 
 #include "link_layer.h"
 
-int fd_global;
+int fd_global = 0;
 int alarmCount = 0;
 int alarmEnabled = FALSE;
 int tries = 0;
 int maxtime = 0;
 int tr = 0;
 int previous = 1;
+
 LinkLayerRole role;
 
 
@@ -178,18 +179,17 @@ int llwrite(const unsigned char *buf, int bufSize)
     frame[2] = (tr << 6);
     frame[3] = (A ^ (tr << 6));
 
+    printf("bufSize = %d\n", bufSize);
+
     char bcc2 = 0x00;
-    printf("buf[0] = %02X\n", buf[0]);
     for (int i = 0; i < bufSize; i++) {
-        printf("buf[%d] = %02X\n", i,buf[i]);
+        //printf("buf[%d] = %02X\n", i,buf[i]);
         bcc2 = bcc2 ^ buf[i];
     }
-
-    printf("bcc2 write = %x\n", bcc2);
+    printf("bcc2 = %x \n", bcc2);
 
     int index = 4;
 
-    printf("before the first for cicle \n");
     for(int i = 0; i < bufSize; i++){
 
         if(buf[i] == FLAG){
@@ -209,8 +209,6 @@ int llwrite(const unsigned char *buf, int bufSize)
             index++;
         }
     }
-    printf("After the first for cicle \n");
-    printf("BufSize = %d\n", bufSize);
     
     if (bcc2 == 0x7E) {
         frame[index] = 0x7D;
@@ -236,33 +234,23 @@ int llwrite(const unsigned char *buf, int bufSize)
     alarmEnabled = FALSE;
     unsigned char v[5];
 
-    printf("before the alarm cicle \n");
     while(alarmCount < tries && STOP == FALSE) {
         if(alarmEnabled == FALSE){
-            printf("sending frame \n");
             alarm(maxtime);
             alarmEnabled = TRUE;
             write(fd_global, frame, index);
-            printf("frame sent \n");
         }
 
         if(read(fd_global, v, 5) > 0){
             if(v[2] != (!tr << 7 | 0x05)){
                 alarmEnabled = FALSE;
-                printf("tr = %d\n", tr);
-                printf("v[2] maybe = %u \n", (unsigned int) (tr << 7 | 0x01));
-                printf("v[2] expected = %u \n", (unsigned int) (!tr << 7 | 0x05));
-                printf("v[2] actual = %u \n", (unsigned int) v[2]);
-                printf("First error\n");
             } 
             else if (v[3] != (v[1] ^ v[2])){
                 alarmEnabled = FALSE;
-                printf("Second error\n");
             } 
             else STOP = TRUE;
         }
     }
-    printf("after the alarm cicle \n");
 
     if(STOP == FALSE){
         printf("alarm timed out \n");
@@ -276,14 +264,135 @@ int llwrite(const unsigned char *buf, int bufSize)
     free(frame);
     return 0;
 }
+/*
+int llread(unsigned char *packet)
+{
+    int i = 0;
+    unsigned char byte;
+    StateMachine state = START ;
+    unsigned char a, c;
+    while(state != END){
+        int read_bytes = read(fd_global, &byte, 1);
+        if(read_bytes < 0){
+            break;
+        }
+        switch(state){
+            case START:
+                if (byte == FLAG) state = FLAG_T;
+                break;
+            case FLAG_T:
+                if (byte == 0x01) state = A_T;
+                else if (byte != FLAG) state = FLAG_T;
+                else state = START;
+                break;
+            case A_T:
+                if(byte == 0x40 || byte == 0x00){
+                    state = C_T;
+                    c = byte;
+                }
+                else if (byte == FLAG) state = FLAG_T;
+                else if (byte == 0x0B) {
+                    unsigned char disc[5] = {FLAG, 0x01, 0x0B, 0x01 ^ 0x0B, FLAG};
+                    if(write(fd_global, disc, 5) < 0){
+                        printf("LLREAD- Failed to send DISC");
+                        return 1;
+                    }
+                    else{
+                        printf("LLREAD- DISC sent successfully!\n");
+                        return 0;
+                    }
+                }
+                else state = START;
+                break;
+            case C_T:
+                if(byte == (0x01 ^ c)){
+                    state = DATA_T;
+                    unsigned char RR;
+                    if(tr == previous){
+                        if(tr == 0) RR = 0x05;
+                        else RR = 0x85;
+                        unsigned char resp[5]  = {FLAG, 0x01, RR, 0x01 ^ RR, FLAG};
+                        if(write(fd_global, resp, 5) < 0){
+                            printf("LLREAD- Failed to send RR");
+                            return 1;
+                        }
+                        else{
+                            printf("LLREAD- RR sent successfully!\n");
+                            return 0;
+                        }
+                    }
+                }
+                else if(byte == FLAG) state = FLAG_T;
+                else state = START;
+                break;
+            case DATA_T:
+                if(byte == ESC_T) state = ESC_T;
+                else if(byte == FLAG){
+                    unsigned char BCC2 = packet[i-1];
+                    i--;
+                    unsigned char acc = packet[0];
 
-int llread(unsigned char *packet) {
+                    for (unsigned int j = 1; j < i; j++){
+                        acc ^= packet[j];
+                    }
+
+                    if(BCC2 == acc){
+                        state = END;
+                        unsigned char RR;
+                        if(tr == 0) RR = 0x05;
+                        else RR = 0x85;
+                        unsigned char rr[5] = {FLAG,0x01,RR, 0x01^RR, FLAG};
+                        if(write(fd_global, rr,5)<0){
+                            printf("LLREAD- Failed to send RR");
+                            return -1;
+                        }
+                        else{
+                            previous = tr;
+                            tr = (tr + 1) % 2;
+                            printf("LLREAD- RR sent successfully!\n");
+                            return i;
+                        }
+
+                    }
+                    else{
+                        unsigned char rej;
+                        if (tr == 0) rej = 0x01;
+                        else rej = 0x81;
+                        unsigned char REJ[5] = {FLAG, 0x01, REJ, 0x01 ^ rej, FLAG};
+                        if (write(fd_global, REJ, 5) < 0){
+                            printf("LLREAD- Failed to send REJ");
+                            return -1;
+                        }
+                        else{
+                            printf("LLREAD- REJ sent successfully!\n");
+                            return -1;
+                        }
+                        return -1;
+                    }
+                }
+                else {
+                    packet[i++] = byte;
+                }
+                break;
+            case ESC_T:
+                state = DATA_T;
+                if (byte == (ESC_T^0x20)) packet[i++]=ESC_T;
+                else if(byte == (FLAG^0x20)) packet[i++]=FLAG;
+                break;
+            default:
+                break;
+        }
+    }
+    return -1;
+}
+*/
+
+int llread(unsigned char *packet, long int* p_size) {
     unsigned char single;
     StateMachine state = START;
     int size = 0;
     unsigned char infoFrame[MAX_PAYLOAD_SIZE * 2];
 
-    printf("Before the first while\n");
     while(state != END){
         if(read(fd_global, &single, 1) > 0){
             switch(state){
@@ -320,8 +429,6 @@ int llread(unsigned char *packet) {
             }
         }
     }
-    printf("After the first while\n");
-    if(state == END) printf("state end, size = %d\n", size);
 
     unsigned char receiverFrame[5];
     receiverFrame[0] = FLAG;
@@ -345,7 +452,6 @@ int llread(unsigned char *packet) {
 
         return -1;
     }
-    else printf("No errors in infoFrame\n");
 
     int index = 0;
     for(int i = 0; i < size; i++){
@@ -373,43 +479,42 @@ int llread(unsigned char *packet) {
         }
         
     }
-    printf("After the destuffing, index = %d\n", index);
 
     int data_control = 0;
     unsigned char bcc2 = 0x00;
     int packetSize = 0;
+
     if(packet[4] == 0x01){
         printf("data\n");
         data_control = 0;
         packetSize = 9 + (256*packet[6]) + packet[7];
-        printf("packetsize = %d \n",packetSize);
+        
+        for(int i = 4; i < index - 2; i++){
+            //printf("packet[%d] = %x \n", i, packet[i]);
+            bcc2 ^= packet[i];
+        }
+
+        packetSize = index - 1;
     }    
     else{
-        printf("control\n");\
+        printf("control\n");
         data_control = 1;
         packetSize += packet[6] + 7;
         packetSize += packet[packetSize + 2] + 4;
 
         packetSize = index - 1;
-        printf("packetsize = %d, index = %d \n", packetSize, index);
+
+        for(int i = 4; i < index - 2; i++){
+            bcc2 ^= packet[i];
+        }
     }
 
-    for(int i = 4; i < packetSize -1; i++){
-        printf("packet[%d] = %02X\n", i - 4,packet[i]);
-        bcc2 ^= packet[i];
-    }
+    //printf("bcc2 = %x, packetSize = %x", bcc2, packet[packetSize -1]);
 
-
-
-    printf("packetsize = %d \n",index);
-    printf("bbc2 read = %x\n", bcc2);
-    printf("bcc2 in act packet = %x\n", packet[packetSize-1]);
-    
-    printf("before the packetSize == bcc2 if\n");
     if(packet[packetSize - 1] == bcc2){
         if(!data_control){
             if(infoFrame[5] == previous){
-                printf("duplicate frame");
+                printf("duplicate frame \n");
                 receiverFrame[2] = (!tr << 7) | 0x05;
                 receiverFrame[3] = receiverFrame[1] ^ receiverFrame[2];
                 write(fd_global, receiverFrame, 5);
@@ -419,24 +524,27 @@ int llread(unsigned char *packet) {
             }
             else previous = infoFrame[5];
         }
-        printf("reached here \n");
+        printf("control frame\n");
         receiverFrame[2] = (!tr << 7) | 0x05;
         receiverFrame[3] = receiverFrame[1] ^ receiverFrame[2];
         write(fd_global, receiverFrame, 5); 
     }
     else{
-        printf("packet[packetSize - 1] != bcc2\n");
+        printf("error in bcc2\n");
         receiverFrame[2] = (tr << 7) | 0x01;
         receiverFrame[3] = receiverFrame[1] ^ receiverFrame[2];
         write(fd_global, receiverFrame, 5);
-        printf("packet[packetSize - 1] != bcc2 2\n");
         return -1;
     }
 
+    for(int i = 0; i < packetSize; i++){
+        //printf("byte %d =  %x \n", i, packet[i]);
+    }
 
     previous = tr;
     if(tr) tr = 0;
     else tr = 1;
+    *p_size = packetSize;
     return 0;
 }
 
@@ -450,18 +558,24 @@ int llclose(int showStatistics) {
     if(role == LlTx){
         printf("This is the transmitter \n");
         state = START;
-        (void)signal(SIGALRM, alarmHandler);
+        signal(SIGALRM, alarmHandler);
 
+        printf("Before the first while \n");
         while(tries != 0 && state != END) {
-
             unsigned char buf[BUF_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
-            write(showStatistics, buf, BUF_SIZE);
+
+            printf("Before writing DISC \n");
+
+            printf("showStatistics = %d", fd_global);
+            write(fd_global, buf, BUF_SIZE);
+            printf("Wrote DISC \n");
 
             alarm(maxtime);
             alarmEnabled = FALSE;
 
+            printf("Before state machine \n");
             while(alarmEnabled == FALSE && state != END){
-                if(read(showStatistics, &single, 1) != 0) {
+                if(read(fd_global, &single, 1) != 0) {
                     switch(state){
                         case START:
                             if(single == FLAG) state = FLAG_T;
@@ -491,14 +605,19 @@ int llclose(int showStatistics) {
                 }
             }
             tries -= 1;
+
+            printf("after the state machine \n");
         }
+        printf("End of llclose \n");
     }
     else if(role == LlRx){
         printf("This is the receiver \n");
         state = START;
 
+        printf("Before the first while \n");
+
         while(alarmEnabled == FALSE && state != END){
-            if(read(showStatistics, &single, 1) != 0) {
+            if(read(fd_global, &single, 1) != 0) {
                 switch(state){
                     case START:
                         if(single == FLAG) state = FLAG_T;
@@ -527,12 +646,14 @@ int llclose(int showStatistics) {
                 }
             }
         }
+        printf("After the first while \n");
         unsigned char buf[BUF_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
-        write(showStatistics, buf, BUF_SIZE);
+        write(fd_global, buf, BUF_SIZE);
+        printf("Wrote DISC \n");
     }
     else return -1;
 
-    if(close(showStatistics) < 0) return -1;
+    if(close(fd_global) < 0) return -1;
     
     return 1;
 }

@@ -88,24 +88,21 @@ int deconstructControlPacket(unsigned char *packet, unsigned char control, char 
     return -1;
 }
 
-int constructDataPacket(unsigned char *packet,unsigned int size, unsigned int index)
+unsigned char* constructDataPacket(unsigned int size, unsigned char *packet, long int *packetSize)
 {
-    unsigned char buf[500] = {0};
+
+    unsigned char *buf = (unsigned char*)malloc(3+size);
 
     buf[0] = 0x01;
-    buf[1] = index % 255;
-    buf[2] = size/256;
-    buf[3] = size%256;
+    buf[1] = ((size >> 8)& 0xff);
+    buf[2] = (size & 0xff);
 
-    for(int i = 4; i < size; i++){
-        buf[i] = packet[i];
+    for(int i = 0; i < size; i++){
+        buf[3+i] = packet[i];
     }
 
-    for(int j = 0; j < (size + 4); j++){
-        packet[j] = buf[j];
-    }
-
-    return (size + 4);
+    *packetSize = 3 + size;
+    return buf;
 }
 
 void deconstructDataPacket(unsigned char *packet, unsigned char *data, int *dataSize)
