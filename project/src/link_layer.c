@@ -456,13 +456,6 @@ int llread(unsigned char *packet, long int* p_size) {
     int index = 0;
     for(int i = 0; i < size; i++){
 
-        if(i == size - 1){
-            packet[index] = infoFrame[i];
-            index++;
-            break;
-        }
-
-
         if(infoFrame[i] == 0x7D && infoFrame[i+1] == 0x5e){
             i++;
             packet[index] = FLAG;
@@ -487,10 +480,8 @@ int llread(unsigned char *packet, long int* p_size) {
     if(packet[4] == 0x01){
         printf("data\n");
         data_control = 0;
-        packetSize = 9 + (256*packet[6]) + packet[7];
         
         for(int i = 4; i < index - 2; i++){
-            //printf("packet[%d] = %x \n", i, packet[i]);
             bcc2 ^= packet[i];
         }
 
@@ -499,8 +490,6 @@ int llread(unsigned char *packet, long int* p_size) {
     else{
         printf("control\n");
         data_control = 1;
-        packetSize += packet[6] + 7;
-        packetSize += packet[packetSize + 2] + 4;
 
         packetSize = index - 1;
 
@@ -524,7 +513,7 @@ int llread(unsigned char *packet, long int* p_size) {
             }
             else previous = infoFrame[5];
         }
-        printf("control frame\n");
+        //printf("control frame\n");
         receiverFrame[2] = (!tr << 7) | 0x05;
         receiverFrame[3] = receiverFrame[1] ^ receiverFrame[2];
         write(fd_global, receiverFrame, 5); 
@@ -535,10 +524,6 @@ int llread(unsigned char *packet, long int* p_size) {
         receiverFrame[3] = receiverFrame[1] ^ receiverFrame[2];
         write(fd_global, receiverFrame, 5);
         return -1;
-    }
-
-    for(int i = 0; i < packetSize; i++){
-        //printf("byte %d =  %x \n", i, packet[i]);
     }
 
     previous = tr;

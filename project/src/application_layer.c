@@ -78,6 +78,7 @@ int enviaFile(const char *filename)
         printf("Control packet start[%d] = %x \n", i, controlStart[i]);
     }
 
+    
     printf("Sending initial control packet\n");
     if (llwrite(controlStart, controlStartSize) < 0)
     {
@@ -85,6 +86,7 @@ int enviaFile(const char *filename)
         llclose(TRANSMITTER);
         return -1;
     }
+    
     
     printf("Wrote initial control packet\n");
 
@@ -96,12 +98,17 @@ int enviaFile(const char *filename)
     int count = 0;
     while ( (bytes = fread(data , 1, sizeof(data), file)) > 0){
         long int dataPacketSize;
+
+        for(int i = 0; i < bytes; i++){
+            //printf("data[%d] = %x  ", i, data[i]);
+        }
+
         unsigned char *packet = constructDataPacket(bytes, data, &dataPacketSize);
         printf("dataPacketSize %ld \n", dataPacketSize);
 
-        for(int i = 0; i < 10; i++){
-            //printf("Data packet[%d] = %x", i, packet[i]);
-        }
+        //printf("Packet[final] = %x  ", packet[dataPacketSize - 1]);
+        //printf("Packet[final - 1] = %x  ", packet[dataPacketSize - 2]);
+        //printf("Packet[final - 2] = %x  \n", packet[dataPacketSize - 3]);
 
         if(llwrite(packet, dataPacketSize) < 0){
             printf("Writing data packet fail \n");
@@ -194,7 +201,7 @@ int recebeFile(const char *filename)
         return -1;
     }
 
-    unsigned char dataPacket[MAX_PAYLOAD_SIZE];
+    unsigned char dataPacket[MAX_PAYLOAD_SIZE*2];
     int dataSize = 0;
     int count = 1;
     long int packetSize;
@@ -204,9 +211,6 @@ int recebeFile(const char *filename)
 
         int r = llread(&dataPacket, &packetSize);
 
-        for(int i = 0; i < 15; i++){
-            //printf("dataPacket[%d] = %x  ", i, dataPacket[i]);
-        }
         printf("\nPacketSize : %ld \n", packetSize);
         if (r < 0)
         {
@@ -239,7 +243,22 @@ int recebeFile(const char *filename)
         else if(r == 0){
             printf("Receiving data packet %d\n", count);
             count++;
-            fwrite(&dataPacket[3], 1, packetSize-3, file);
+            /*
+            for(int i = 0; i < packetSize ; i++){
+                printf("packet[%d] = %x  ", i, dataPacket[i]);
+            }
+            */
+
+            unsigned char final_data_packet[MAX_PAYLOAD_SIZE*2];
+            size_t count = 0;
+            for(int i = 7; i < packetSize - 1; i++){
+                count++;
+                final_data_packet[i - 7] = dataPacket[i];
+                //printf("final[%d] = %x  \n", i - 7, final_data_packet[i - 7]);
+            }
+
+            fwrite(final_data_packet, sizeof(unsigned char), count, file);
+            printf("After writing \n");
         }   
     }
 
