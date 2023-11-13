@@ -13,8 +13,6 @@
 int constructControlPacket(unsigned char *packet, unsigned char control, const char *fName, long int fLength)
 {
     packet[0] = control;
-
-    // first TLV
     packet[1] = 0;
     int fSize = 0;
 
@@ -28,18 +26,15 @@ int constructControlPacket(unsigned char *packet, unsigned char control, const c
 
     packet[2] = fSize;
 
-    // serialize the file length into control packet
     for (int i = fSize - 1; i >= 0; i--)
     {
         packet[3 + ((fSize - 1) - i)] = (fLength >> (i * 8)) & 0xFF;
     }
 
-    // second TLV
     packet[3 + fSize] = 1;
     int fNameSize = strlen(fName);
     packet[4 + fSize] = fNameSize;
 
-    // serialize the file name into control packet
     for (int i = 0; i < fNameSize; i++)
     {
         packet[6 + fSize - 1 + i] = fName[i];
@@ -64,7 +59,6 @@ int deconstructControlPacket(unsigned char *packet, unsigned char control, char 
     {
         fSize = packet[6];
 
-        // save file length
         for (int i = 0; i < fSize; i++)
         {
             *fLength = (*fLength) * 256 + packet[7 + i];
@@ -76,7 +70,6 @@ int deconstructControlPacket(unsigned char *packet, unsigned char control, char 
         {
             fNameSize = packet[9 + packet[6] - 1];
 
-            // save file name
             for (int i = 0; i < fNameSize; i++)
             {
                 fName[i] = packet[10 + packet[6] - 1 + i];
@@ -103,14 +96,4 @@ unsigned char* constructDataPacket(unsigned int size, unsigned char *packet, lon
 
     *packetSize = 3 + size;
     return buf;
-}
-
-void deconstructDataPacket(unsigned char *packet, unsigned char *data, int *dataSize)
-{
-    *dataSize = packet[1] * 256 + packet[2];
-
-    for (int i = 0; i < *dataSize; i++)
-    {
-        data[i] = packet[i + 4];
-    }
 }

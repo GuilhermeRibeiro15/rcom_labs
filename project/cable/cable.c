@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
     unsigned char rx2tx[BUF_SIZE] = {0};
     char rxStdin[BUF_SIZE] = {0};
 
-    CableMode cableMode = CableModeOn;
+    CableMode cableMode = CableModeNoise;
     volatile int STOP = FALSE;
 
     printf("Cable ready\n");

@@ -27,13 +27,11 @@ void applicationLayer(const char *serialport, const char *role, int baudrate,
 
     if (strcmp(role, "tx") == 0){
         linklayer.role = LlTx;
-        printf("TRANSMITTER");
         printf("%s", filename);            
         enviaFile(filename);
     }
     else if (strcmp(role, "rx") == 0){
        linklayer.role = LlRx;
-        printf("RECEIVER");
         printf("%s", filename);            
        recebeFile(filename); 
     }
@@ -55,7 +53,6 @@ int enviaFile(const char *filename)
         return -1;
     }
 
-    // open port
     if (llopen(linklayer) < 0)
     {
         printf("Couldn't establish connection with receiver\n");
@@ -63,52 +60,30 @@ int enviaFile(const char *filename)
         return -1;
     }
 
-    printf("Port open and comunication done\n");
-
-    // calculate file size by going to the end of the file and asking for the position
     fseek(file, 0L, SEEK_END);
     long int fileLength = ftell(file);
     fseek(file, 0L, SEEK_SET);
 
-    // build START control packet
     unsigned char controlStart[MAX_BUF_SIZE];
     int controlStartSize = constructControlPacket(controlStart, START_PACKET, filename, fileLength);
 
-    for(int i = 0; i < controlStartSize; i++){
-        printf("Control packet start[%d] = %x \n", i, controlStart[i]);
-    }
-
-    
-    printf("Sending initial control packet\n");
     if (llwrite(controlStart, controlStartSize) < 0)
     {
-        printf("Couldn't write initial control packet\n");
+        printf("\nCouldn't write initial control packet\n");
         llclose(TRANSMITTER);
         return -1;
     }
     
-    
     printf("Wrote initial control packet\n");
-
-    
 
     unsigned char data[MAX_PAYLOAD_SIZE]; 
     long int bytes;
-    printf("----------------------------------------------------------------------- \n");
     int count = 0;
     while ( (bytes = fread(data , 1, sizeof(data), file)) > 0){
         long int dataPacketSize;
 
-        for(int i = 0; i < bytes; i++){
-            //printf("data[%d] = %x  ", i, data[i]);
-        }
-
         unsigned char *packet = constructDataPacket(bytes, data, &dataPacketSize);
         printf("dataPacketSize %ld \n", dataPacketSize);
-
-        //printf("Packet[final] = %x  ", packet[dataPacketSize - 1]);
-        //printf("Packet[final - 1] = %x  ", packet[dataPacketSize - 2]);
-        //printf("Packet[final - 2] = %x  \n", packet[dataPacketSize - 3]);
 
         if(llwrite(packet, dataPacketSize) < 0){
             printf("Writing data packet fail \n");
@@ -122,14 +97,11 @@ int enviaFile(const char *filename)
 
         free(packet);
     }
-    printf("----------------------------------------------------------------------- \n");
 
     // build END control packet
     unsigned char controlEnd[DATA_SIZE + 4];
     int controlEndSize = constructControlPacket(controlEnd, END_PACKET, filename, fileLength);
 
-    
-    printf("Sending ending control packet\n");
     if (llwrite(controlEnd, controlEndSize) < 0)
     {
         printf("Couldn't write ending control packet\n");
@@ -137,6 +109,7 @@ int enviaFile(const char *filename)
         return -1;
     }
     
+    printf("Sent ending control packet\n");
 
     if (fclose(file) != 0)
     {
@@ -145,7 +118,6 @@ int enviaFile(const char *filename)
         return -1;
     }
 
-    // close port
     if (llclose(TRANSMITTER) < 0)
     {
         printf("Couldn't close process\n");
@@ -158,7 +130,6 @@ int enviaFile(const char *filename)
 
 int recebeFile(const char *filename)
 {
-    // open port
     if (llopen(linklayer) < 0)
     {
         printf("Couldn't establish connection with transmitter\n");
@@ -169,20 +140,17 @@ int recebeFile(const char *filename)
     unsigned char control[MAX_DATA_SIZE];
     long int initialControlSize;
 
-    
-    printf("Reading initial control packet\n");
     if (llread(control, &initialControlSize) < 0)
     {
         printf("Error reading control packet");
         llclose(RECEIVER);
         return -1;
     }
-    printf("Read the control packet\n");
+    printf("\nRead the initial control packet\n");
     
     char fileName[MAX_BUF_SIZE];
     int fileLength = 0;
 
-    // disassemble START control packet
     if (deconstructControlPacket(control, START_PACKET, fileName, &fileLength) < 0)
     {
         printf("Initial control packet wrong\n");
@@ -191,7 +159,6 @@ int recebeFile(const char *filename)
     }
     else printf("Initial control packet correct\n");
     
-    // open file to write
     FILE *file = fopen(filename, "wb");
 
     if (file == NULL)
@@ -202,7 +169,6 @@ int recebeFile(const char *filename)
     }
 
     unsigned char dataPacket[MAX_PAYLOAD_SIZE*2];
-    int dataSize = 0;
     int count = 1;
     long int packetSize;
 
@@ -222,47 +188,24 @@ int recebeFile(const char *filename)
             printf("Start packet \n");
         }
 
-
-        // data to write to the file was read
-        /*
-        if (dataPacket[4] == DATA)
-        {
-            printf("Writing information to file\n");
-
-            dataSize = dataPacket[2];
-            fwrite(dataPacket + 3, 1, dataSize, file);
-        }
-        */
-
-        // ending control packet was read
         else if (dataPacket[4] == END_PACKET){
-            //printf("dataPacket[6] = %x  ", dataPacket[6]);
             printf("\nEnd control\n");
             break;
         }
         else if(r == 0){
             printf("Receiving data packet %d\n", count);
             count++;
-            /*
-            for(int i = 0; i < packetSize ; i++){
-                printf("packet[%d] = %x  ", i, dataPacket[i]);
-            }
-            */
 
             unsigned char final_data_packet[MAX_PAYLOAD_SIZE*2];
             size_t count = 0;
             for(int i = 7; i < packetSize - 1; i++){
                 count++;
                 final_data_packet[i - 7] = dataPacket[i];
-                //printf("final[%d] = %x  \n", i - 7, final_data_packet[i - 7]);
             }
 
             fwrite(final_data_packet, sizeof(unsigned char), count, file);
-            printf("After writing \n");
         }   
     }
-
-    printf("Ending control packet detected\n");
 
     if (fclose(file) != 0)
     {
@@ -270,16 +213,12 @@ int recebeFile(const char *filename)
         printf("Error closing file\n");
         return -1;
     }
-    printf("Closed the file\n");
 
-    // close port
     if (llclose(RECEIVER) < 0)
     {
         printf("Couldn't close file\n");
         return -1;
     }
-
-    printf("Port closed\n");
 
     return 0;
 }
