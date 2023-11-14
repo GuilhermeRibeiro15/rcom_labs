@@ -265,6 +265,8 @@ int llread(unsigned char *packet, long int* p_size) {
     int size = 0;
     unsigned char infoFrame[MAX_PAYLOAD_SIZE * 2];
 
+    (void)signal(SIGALRM, alarmHandler);
+
     alarmCount = 0;
     alarmEnabled = FALSE;
     while(state != END && alarmCount < tries){
