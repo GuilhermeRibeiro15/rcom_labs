@@ -265,8 +265,15 @@ int llread(unsigned char *packet, long int* p_size) {
     int size = 0;
     unsigned char infoFrame[MAX_PAYLOAD_SIZE * 2];
 
-    while(state != END){
+    alarmCount = 0;
+    alarmEnabled = FALSE;
+    while(state != END && alarmCount < tries){
+        if(alarmEnabled == FALSE){
+            alarm(maxtime);
+            alarmEnabled = TRUE;
+        }
         if(read(fd_global, &single, 1) > 0){
+            alarmEnabled = FALSE;
             switch(state){
                 case START:
                     if(single == FLAG){
@@ -300,6 +307,10 @@ int llread(unsigned char *packet, long int* p_size) {
                     break;                 
             }
         }
+    }
+    if(state != END){
+        printf("Alarm timed out");
+        return -1;
     }
 
     unsigned char receiverFrame[5];
