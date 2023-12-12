@@ -4,25 +4,31 @@
 #ifndef _APPLICATION_LAYER_H_
 #define _APPLICATION_LAYER_H_
 
-#include "packet.h"
 #include "link_layer.h"
 
 #define MAX_BUF_SIZE 256
 #define TRANSMITTER 0
 #define RECEIVER 1
 
+#define DATA 1
+#define START_PACKET 2
+#define END_PACKET 3
+
+#define MAX_DATA_SIZE 256
+#define DATA_SIZE 100
+
 // Application layer main function.
-// Arguments:
-//   serialPort: Serial port name (e.g., /dev/ttyS0).
-//   role: Application role {"tx", "rx"}.
-//   baudrate: Baudrate of the serial port.
-//   nTries: Maximum number of frame retries.
-//   timeout: Frame timeout.
-//   filename: Name of the file to send / receive.
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename);
-
+// Lógica da aplication layer para o transmissor
 int enviaFile(const char *filename);
+// Lógica da aplication layer para o recetor
 int recebeFile(const char *filename);
+// construct control packet - retorna o tamanho do packet
+int constructControlPacket(unsigned char *packet, unsigned char control, const char *fName, long int fLength);
+// deconstruct control packet - retorna 0 se tudo estiver ok e -1 se houver algum erro
+int deconstructControlPacket(unsigned char *packet, unsigned char control, char *fName, int *fLength);
+// construct data packet - retorna o seu tamanho
+unsigned char* constructDataPacket(unsigned int size, unsigned char *packet, long int *packetSize);
 
 #endif // _APPLICATION_LAYER_H_

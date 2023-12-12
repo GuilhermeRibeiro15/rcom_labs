@@ -222,3 +222,91 @@ int recebeFile(const char *filename)
 
     return 0;
 }
+
+int constructControlPacket(unsigned char *packet, unsigned char control, const char *fName, long int fLength)
+{
+    packet[0] = control;
+    packet[1] = 0;
+    int fSize = 0;
+
+    long int auxFileSize = fLength;
+
+    while (auxFileSize > 0)
+    {
+        auxFileSize >>= 8;
+        fSize++;
+    }
+
+    packet[2] = fSize;
+
+    for (int i = fSize - 1; i >= 0; i--)
+    {
+        packet[3 + ((fSize - 1) - i)] = (fLength >> (i * 8)) & 0xFF;
+    }
+
+    packet[3 + fSize] = 1;
+    int fNameSize = strlen(fName);
+    packet[4 + fSize] = fNameSize;
+
+    for (int i = 0; i < fNameSize; i++)
+    {
+        packet[6 + fSize - 1 + i] = fName[i];
+    }
+
+    return 6 + fSize - 1 + fNameSize;
+}
+
+int deconstructControlPacket(unsigned char *packet, unsigned char control, char *fName, int *fLength)
+{
+    
+    
+    if (packet[4] != control)
+    {
+        printf("Control packet incorrect, packet[0] = %02X\n", packet[0]);
+        return -1;
+    }
+
+    int fSize;
+
+    if (packet[5] == 0)
+    {
+        fSize = packet[6];
+
+        for (int i = 0; i < fSize; i++)
+        {
+            *fLength = (*fLength) * 256 + packet[7 + i];
+        }
+
+        int fNameSize;
+
+        if (packet[8 + packet[6] - 1] == 1)
+        {
+            fNameSize = packet[9 + packet[6] - 1];
+
+            for (int i = 0; i < fNameSize; i++)
+            {
+                fName[i] = packet[10 + packet[6] - 1 + i];
+            }
+        }
+
+        return 0;
+    }
+    return -1;
+}
+
+unsigned char* constructDataPacket(unsigned int size, unsigned char *packet, long int *packetSize)
+{
+
+    unsigned char *buf = (unsigned char*)malloc(3+size);
+
+    buf[0] = 0x01;
+    buf[1] = ((size >> 8)& 0xff);
+    buf[2] = (size & 0xff);
+
+    for(int i = 0; i < size; i++){
+        buf[3+i] = packet[i];
+    }
+
+    *packetSize = 3 + size;
+    return buf;
+}
